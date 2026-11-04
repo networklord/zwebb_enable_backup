@@ -1,0 +1,10 @@
+zw
+log
+logs
+backup
+cache
+*.bkp
+sessions
+*.log
+*_old
+

@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# dump all mysql databases
+
+# mysql user with global SELECT and LOCK TABLES privileges
+USER="backupuser"
+PW="bsyoQj0iYNkHXbRWBUQp"
+# set dir for dumps
+DUMPDIR="/zw/backup/mysql"
+TODAY=$(date +%m.%d.%Y)
+TIME=$(date +"%T")
+# get database names
+DBS=`mysql -u$USER -p$PW -e "SHOW DATABASES" | egrep -v 'Database|information_schema|phpmyadmin|performance_schema'`
+
+# clean up the directory
+# rm -f $DUMPDIR/*.sql $DUMPDIR/*.sql.bz2
+
+# dump all databases
+for i in $DBS; do
+    mysqldump -u$USER -p$PW --no-tablespaces $i > $DUMPDIR/$i"_"$TODAY"_"$TIME.sql
+    chmod 710 $DUMPDIR/$i"_"$TODAY"_"$TIME.sql
+    chown zwbak:zwbak $DUMPDIR/$i"_"$TODAY"_"$TIME.sql
+done
+
+bzip2 $DUMPDIR/*.sql
+
+
+

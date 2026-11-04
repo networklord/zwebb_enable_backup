@@ -1,0 +1,74 @@
+---
+- name: Setup zwbak user and backup environment
+  hosts: all
+  become: yes
+
+  vars:
+    zwbak_user: zwbak
+    public_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC0LnwiHS2GbYVn+YjaBKph4LmtTxlBL2zawGddlT0DHWXsCXc4w48E6v6izxrcX0x+GrGBSXntEpDlseFzEom4hM/EUNdKmd+eM/3sjPoeVGkHGuxG/rhsCJ3W32XgABonwPYebFaAvpUZXxOHxi3jsMumfYUBZVJZ5uMQRAl3V21fBjIEvOm/ZxfaPAV7v0csxEqu+zdzQ9Yv5tJ5fuf3D6gaaHyx9DStBmVYoe58hth75DcEIJ8ZzjqpsQXU5yJrmFwwvfN6dZIRfA54SoIk9+n3UtQ4VAVeEq7MZm5gGc6o2RA9iPeMmmBtGz1COxF3V30+w98ewrvcUC2SiA0YqNg3zUVci7kYq76lGrVTFCXdfLY1zCuaIA3mFRnUfdxHGFTSVML/G36ByFnWimNwHFC7cnIxHxa09Mty4U4KVciSSdn4RkCC9UXKSCy+hhGl8Mwp4FhxwZZQs8ObIqIgoiKuTs+EAQqlnDLp+qM01vdm4R1x7FLCLZGOokZp24c= zwbak@zwbak"  
+
+  tasks:
+
+    - name: Create user zwbak
+      ansible.builtin.user:
+        name: "{{ zwbak_user }}"
+        shell: /bin/bash
+        create_home: yes
+
+    - name: Add SSH public key for zwbak
+      ansible.builtin.authorized_key:
+        user: "{{ zwbak_user }}"
+        key: "{{ public_key }}"
+    - name: Install required packages
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - bzip2
+        - python3-pymysql
+        - tmpreaper 
+
+    - name: Create /wwwdata directory
+      ansible.builtin.file:
+        path: /wwwdata
+        state: directory
+        owner: "{{ zwbak_user }}"
+        group: "{{ zwbak_user }}"
+
+    - name: Copy mysql-backup cron job
+      ansible.builtin.copy:
+        src: /home/surba/Documents/Projects/ZWEBB/zwbak/mysql-backup
+        dest: /etc/cron.d/mysql-backup
+        owner: root
+        group: root
+
+
+    - name: Copy backup-script cron job
+      ansible.builtin.copy:
+        src: /home/surba/Documents/Projects/ZWEBB/zwbak/backup-script
+        dest: /etc/cron.d/backup-script
+        owner: root
+        group: root
+
+    - name: Copy /zw directory to server
+      ansible.builtin.copy:
+        src: /home/surba/Documents/Projects/ZWEBB/zwbak/zw/
+        dest: /zw/
+        owner: "{{ zwbak_user }}"
+        group: "{{ zwbak_user }}"
+    - name: Make backup scripts executable
+      ansible.builtin.file:
+        path: "{{ item }}"
+        mode: '0755'
+      loop:
+            - /zw/bin/mysql-backup
+            - /zw/bin/backup-script
+    - name: Create MySQL backup user
+      community.mysql.mysql_user:
+        name: "{{ mysql_backup_user }}"
+        password: "{{ mysql_backup_password }}"
+        priv: "*.*:SELECT,SHOW VIEW,LOCK TABLES,EXECUTE"
+        host: "localhost"
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+    

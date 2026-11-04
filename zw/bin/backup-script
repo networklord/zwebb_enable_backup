@@ -1,0 +1,70 @@
+#
+# a simple backup script
+#
+
+#
+# general settings
+#
+FILELIST="/zw/conf/backup_filelist"
+EXCLUDE="/zw/conf/backup_exclude"
+LOGFILE="/zw/conf/backup.log"
+BACKUP_PATH="/zw/backup"
+
+# auto-generated variables
+DATE=`date +%Y-%m-%d`
+FILENAME=$BACKUP_PATH"/backup_"$DATE".tar.bz2"
+SNARNAME=$BACKUP_PATH"/backup_"$DATE".snar"
+LAST_FULL_FILENAME=$BACKUP_PATH"/last_full"
+
+# remove old backup
+#rm -f /wwwdump/*.tar.bz2
+
+#
+# check if the backup file already exists
+#
+if test -e $FILENAME ; then
+  echo "Error: File \"$FILENAME\" already exists."
+  echo "Backup cancelled."
+  exit 1
+fi
+
+#
+# put a marker into log file
+#
+STARTTIME=`date "+%Y-%m-%d %H:%M:%S"`
+echo "----MARK----" > $LOGFILE
+echo "$STARTTIME - Backup started" >> $LOGFILE
+
+#
+# run tar
+# no absolute paths to avoid "Removing leading /" messages
+# run tar with priority 19 (-19 = highest, 19 = lowest)
+#
+cd /
+
+#nice -n 19 tar -c -j -f $FILENAME --files-from=$FILELIST --exclude-from=$EXCLUDE >> $LOGFILE 2>&1
+nice -n 19 tar --exclude-vcs -X $EXCLUDE -T $FILELIST  -c -j -f $FILENAME >> $LOGFILE 2>&1
+
+chmod 770 $FILENAME
+
+# Remove the files older than 30 days
+find $BACKUP_PATH -type f -mtime +28 -exec rm -f {} \;
+
+#
+# copy file to other locastion if someone else need to pick it up
+# 
+mv $FILENAME /wwwdata
+chown zwbak:zwbak /wwwdata/*.tar.bz2
+
+
+#
+# write last_full file (for incremental backup)
+#
+echo -n $DATE > $LAST_FULL_FILENAME
+
+#
+# put a marker into log file
+#
+ENDTIME=`date "+%Y-%m-%d %H:%M:%S"`
+echo "$ENDTIME - Backup finished" >> $LOGFILE
+
