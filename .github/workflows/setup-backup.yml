@@ -1,0 +1,73 @@
+
+name: Setup Backup Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_ip:
+        description: "Server IP address"
+        required: true
+        type: string
+
+jobs:
+  setup-backup:
+    runs-on: ubuntu-latest
+
+    env:
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+          ansible-galaxy collection install community.mysql
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Configure MySQL credentials
+        env:
+          MYSQL_BACKUP_USER: ${{ secrets.MYSQL_BACKUP_USER }}
+          MYSQL_BACKUP_PASSWORD: ${{ secrets.MYSQL_BACKUP_PASSWORD }}
+        run: |
+          set +x
+          umask 077
+
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open("/tmp/mysql-backup-vars.json", "w") as f:
+              json.dump({
+                  "mysql_backup_user": os.environ["MYSQL_BACKUP_USER"],
+                  "mysql_backup_password": os.environ["MYSQL_BACKUP_PASSWORD"]
+              }, f)
+          PY
+
+      - name: Setup backup environment
+        env:
+          SERVER_IP: ${{ inputs.server_ip }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ansible-playbook \
+            -i "${SERVER_IP}," \
+            SetupBackup.yaml \
+            --user "$SSH_USER" \
+            --private-key ~/.ssh/id_rsa \
+            --extra-vars @/tmp/mysql-backup-vars.json
+
+      - name: Cleanup credentials
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa
+          rm -f /tmp/mysql-backup-vars.json
+
