@@ -1,0 +1,1 @@
+10 1 * * 6 root /usr/sbin/tmpreaper 15d /wwwdata && /zw/bin/backup-script
